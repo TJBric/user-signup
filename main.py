@@ -1,75 +1,115 @@
-#!/usr/bin/env python
-#
-# Copyright 2007 Google Inc.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
+
 import webapp2
+import re
 
 form="""
-<form method="post">
-    What is your birthday?
-    <br>
-    <label>
-        Month
-        <input type="text" name="month" value="%(month)s">
-    </label>
-    <label>
-        Day
-        <input type="text" name="day" value="%(day)s">
-    </label>
-    <label>
-        Year
-        <input type="text" name="year" value="%(year)s">
-    </label>
-    <div style="color: red">%(error)s</div>
-    <br>
-    <br>
-    <input type="submit">
-</form>
+     <head>
+            <style>
+                .error {
+                    color: red;
+                }
+            </style>
+        </head>
+        <body>
+        <h1>User Signup</h1>
+            <form method="post">
+                <table>
+                    <tr>
+                        <td><label for="username">Username:</label></td>
+                        <td>
+                            <input name="username" type="text" value="" required>
+                            <span class="error"></span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><label for="password">Password:</label></td>
+                        <td>
+                            <input name="password" type="password" required>
+                            <span class="error"></span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><label for="verify">Verify Password</label></td>
+                        <td>
+                            <input name="verify" type="password" required>
+                            <span class="error"></span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><label for="email">Email (optional)</label></td>
+                        <td>
+                            <input name="email" type="email" value="">
+                            <span class="error"></span>
+                        </td>
+                    </tr>
+                </table>
+                <input type="submit">
+            </form>
+        </body>
 """
 
 class MainHandler(webapp2.RequestHandler):
-    def write_form(self, error="", month="", day="", year=""):
-        self.response.out.write(form % {"error": error,
-                                        "month": escape_html(month),
-                                        "day": escape_html(day),
-                                        "year": escape_html(year)
+    def write_form(self, username="", password="", verify="", email=""):
+        self.response.out.write(form % {"username": username,
+                                        "password": password,
+                                        "verify": verify,
+                                        "email": email
                                         })
 
     def get(self):
         self.write_form()
 
     def post(self):
-        user_month = self.request.get('month')
-        user_day = self.request.get('day')
-        user_year = self.request.get('year')
+        username = self.request.get('username')
+        password = self.request.get('password')
+        verify = self.request.get('verify')
+        email = self.request.get('email')
+        error = False
 
-        month = valid_month(user_month)
-        day = valid_day(user_day)
-        year = valid_year(user_year)
+        params = dict(username = username,
+                      email = email)
 
-        if not (month and day and year):
-            self.write_form("That doesn't look valid to me, friend.",
-                            user_month, user_day, user_year)
+        if not valid_username(username):
+            params['error_username'] = "That's not a valid username."
+            error = True
+
+        if not valid_password(password):
+            params['error_password'] = "That wasn't a valid password."
+            error = True
+        elif password != verify:
+            params['error_verify'] = "Your passwords didn't match."
+            error = True
+
+        if not valid_email(email):
+            params['error_email'] = "That's not a valid email."
+            error = True
+
+        if error:
+            self.response.out.write(form, **params)
         else:
-            self.redirect("/thanks")
+            self.redirect('/welcome?username=' + username)
 
-class ThanksHandler(webapp2.RequestHandler):
+
+USER_RE = re.compile(r"^[a-zA-Z0-9_-]{3,20}$")
+PASS_RE = re.compile(r"^.{3,20}$")
+EMAIL_RE = re.compile(r'^[\S]+@[\S]+\.[\S]+$')
+
+def valid_username(username):
+    return username and USER_RE.match(username)
+
+def valid_password(password):
+    return password and PASS_RE.match(password)
+
+def valid_email(email):
+    return not email or EMAIL_RE.match(email)
+
+class WelcomeHandler(webapp2.RequestHandler):
     def get(self):
-        self.respons.out.write("Thanks! That's a totally valid date!")
+        username = self.request.get('username')
+        self.response.out.write("Welcome, " + username + "!")
 
 app = webapp2.WSGIApplication([
     ('/', MainHandler),
-    ('/thanks',  ThanksHandler)
+    ('/welcome', WelcomeHandler)
+
 ], debug=True)
