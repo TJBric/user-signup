@@ -29,8 +29,8 @@ header = """
     span {color: red}
     label {
         display:inline-block;
-        width: 125px;
-        margin-bottom: 5px;
+        width: 150px;
+        margin-bottom: 10px;
         }
     </style>
 </head>
