@@ -1,61 +1,77 @@
+#!/usr/bin/env python
+#
+# Copyright 2007 Google Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 
 import webapp2
 import re
+import cgi
 
-form="""
-     <head>
-            <style>
-                .error {
-                    color: red;
-                }
-            </style>
-        </head>
-        <body>
-        <h1>User Signup</h1>
-            <form method="post">
-                <table>
-                    <tr>
-                        <td><label for="username">Username:</label></td>
-                        <td>
-                            <input name="username" type="text" value="" required>
-                            <span class="error"></span>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td><label for="password">Password:</label></td>
-                        <td>
-                            <input name="password" type="password" required>
-                            <span class="error"></span>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td><label for="verify">Verify Password</label></td>
-                        <td>
-                            <input name="verify" type="password" required>
-                            <span class="error"></span>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td><label for="email">Email (optional)</label></td>
-                        <td>
-                            <input name="email" type="email" value="">
-                            <span class="error"></span>
-                        </td>
-                    </tr>
-                </table>
-                <input type="submit">
-            </form>
-        </body>
+header = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>User Signup</title>
+    <style type="text/css">
+    span {color: red}
+    label {
+        display:inline-block;
+        width: 125px;
+        margin-bottom: 5px;
+        }
+    </style>
+</head>
 """
 
+form = """
+<body>
+    <h1>User Signup</h1>
+    <form method="post">
+        <label>User Name: </label>
+        <input type="text" name="username" value="%(username)s">
+        <span>%(error_user)s</span>
+        <br>
+        <label>Password: </label>
+        <input type="password" name="password">
+        <span>%(error_pw)s</span>
+        <br>
+        <label>Verify Password: </label>
+        <input type="password" name="verify">
+        <span>%(error_verify)s</span>
+        <br>
+        <label>E-Mail (optional):</label>
+        <input type="text" name="email" value="%(email)s">
+        <span>%(error_email)s</span>
+        <br><br>
+        <input type="submit">
+    </form>
+"""
+footer="""
+</body>
+</html>
+"""
 class MainHandler(webapp2.RequestHandler):
-    def write_form(self, username="", password="", verify="", email=""):
-        self.response.out.write(form % {"username": username,
-                                        "password": password,
-                                        "verify": verify,
-                                        "email": email
-                                        })
-
+    def write_form(self, username="", error_user="", error_pw="", error_verify="", email="", error_email=""):
+          self.response.out.write(header + (form % {"username": username,
+                                            "email": email,
+                                            "error_pw": error_pw,
+                                            "error_email": error_email,
+                                            "error_user" : error_user,
+                                            "error_verify" : error_verify
+                                            }) + footer)
     def get(self):
         self.write_form()
 
@@ -64,52 +80,45 @@ class MainHandler(webapp2.RequestHandler):
         password = self.request.get('password')
         verify = self.request.get('verify')
         email = self.request.get('email')
-        error = False
 
-        params = dict(username = username,
-                      email = email)
+        esc_user = escaped_html(username)
+        esc_pw = escaped_html(password)
+        esc_verify = escaped_html(verify)
+        esc_email = escaped_html(email)
 
-        if not valid_username(username):
-            params['error_username'] = "That's not a valid username."
-            error = True
+        form_user = esc_user
+        form_pw = "Invalid Password"
+        form_verify = "Passwords don't match."
+        form_email = "Invalid e-mail."
 
-        if not valid_password(password):
-            params['error_password'] = "That wasn't a valid password."
-            error = True
-        elif password != verify:
-            params['error_verify'] = "Your passwords didn't match."
-            error = True
-
-        if not valid_email(email):
-            params['error_email'] = "That's not a valid email."
-            error = True
-
-        if error:
-            self.response.out.write(form, **params)
+        if not valid_username(esc_user):
+            self.write_form("", "Invalid Username", "", "", "", "")
+        elif not valid_password(esc_pw):
+            self.write_form(form_user, "", form_pw, "", esc_email, "")
+        elif esc_pw != esc_verify:
+            self.write_form(form_user,"", "", "Passwords don't match.", esc_email, "")
+        elif not valid_email(esc_email):
+            self.write_form(form_user, "", "", "", "", form_email)
         else:
-            self.redirect('/welcome?username=' + username)
+            self.response.out.write("<h2>Welcome, " + username + "!</h2>")
 
 
-USER_RE = re.compile(r"^[a-zA-Z0-9_-]{3,20}$")
-PASS_RE = re.compile(r"^.{3,20}$")
-EMAIL_RE = re.compile(r'^[\S]+@[\S]+\.[\S]+$')
+def escaped_html(text):
+    return cgi.escape(text)
 
+user_re = re.compile(r"^[a-zA-Z0-9_-]{3,20}$")
 def valid_username(username):
-    return username and USER_RE.match(username)
+    return username and user_re.match(username)
 
+pass_re = re.compile(r"^.{3,20}$")
 def valid_password(password):
-    return password and PASS_RE.match(password)
+    return password and pass_re.match(password)
 
+email_re  = re.compile(r'^[\S]+@[\S]+\.[\S]+$')
 def valid_email(email):
-    return not email or EMAIL_RE.match(email)
+    return not email or email_re.match(email)
 
-class WelcomeHandler(webapp2.RequestHandler):
-    def get(self):
-        username = self.request.get('username')
-        self.response.out.write("Welcome, " + username + "!")
 
 app = webapp2.WSGIApplication([
-    ('/', MainHandler),
-    ('/welcome', WelcomeHandler)
-
+    ('/', MainHandler)
 ], debug=True)
